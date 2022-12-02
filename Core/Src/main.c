@@ -9,9 +9,16 @@
 #include "imu.h"
 #include "stdbool.h"
 #include "low_pass_simple.h"
+#include "math.h"
 
 #define BATT_VOLTAGE_DISARM_THRESHOLD_MV         6000
 #define BATT_VOLTAGE_TURTLE_THRESHOLD_MV         6700
+
+/* Start angles */
+#define ANGLE_INIT_PITCH                         90.0
+#define ANGLE_INIT_YAW                           0.0
+#define ANGLE_INIT_ROLL                          0.0
+
 static bool disarm_flag = false;
 static bool turtle_mode_flag = false;
 
@@ -33,11 +40,41 @@ uint32_t band2band(uint32_t b1_min, uint32_t b1_max, uint32_t b2_min, uint32_t b
     return retval;
 }
 
+float fband2band(float b1_min, float b1_max, float b2_min, float b2_max, float val_from_b1) {
+    float retval = ((((val_from_b1 - b1_min)*100.0)/(b1_max - b1_min))*(b2_max - b2_min))/100.0 + b2_min;
+    return retval;
+}
+
+/* -100 to +100 */
+void set_roll_pitch(float roll, float pitch) {
+    int elevon_diff = ((int)fband2band(-100.0, 100.0, 1000.0, 2000.0, roll) - 1500);
+
+    uint32_t elevon_right_val = crop_data(1010, 1950, (int)fband2band(-100.0, 100.0, 1000.0, 2000.0, pitch) + elevon_diff);
+    uint32_t elevon_left_val = crop_data(1010, 1950, 3000 - (int)fband2band(-100.0, 100.0, 1000.0, 2000.0, pitch) + elevon_diff);
+
+    /* Right elevon */
+    TIM2->CCR2 = elevon_right_val;
+
+    /* Left elevon */
+    TIM2->CCR1 = elevon_left_val;
+}
+
 void handle_verticle_mode(struct IbusCannels* ch_struct_ptr) {
-    float pitch_rate, roll_rate, yaw_rate;  // нос вверх, правое крыло вниз,нос влево
-    if (get_gyro(&pitch_rate, &roll_rate, &yaw_rate) != true) {
+    float pitch, yaw;
+    if (imu_get_pitch_yaw(&pitch, &yaw) != true) {
         return;
     }
+
+//    printf("%.2f, %.2f\n", pitch, yaw);
+
+//    float yaw_rate, roll_rate, pitch_rate;
+//    if (get_gyro(&yaw_rate, &roll_rate, &pitch_rate) != true) {
+//        return;
+//    }
+
+    //pitch -
+    //roll - right wing down +
+    //yaw - clockwise +
 
     //yaw_rate should be proportional to stick (left, horizontal)
 
@@ -46,11 +83,48 @@ void handle_verticle_mode(struct IbusCannels* ch_struct_ptr) {
 
     //Roll should be proportional to stick(right, horizontal)
 
-    //printf("pitch: %.2f, yaw: %.2f\n", pitch, yaw);
+//    set_roll_pitch(fband2band(1000.0, 2000.0, -100.0, 100.0, (float)ch_struct_ptr->ch1),
+//            fband2band(1000.0, 2000.0, -100.0, 100.0, (float)ch_struct_ptr->ch2));
+
+//    printf("%.2f, %.2f, %.2f\n", pitch_rate/1000, roll_rate/1000, yaw_rate/1000);
 }
 
 void handle_horizontal_mode(struct IbusCannels* ch_struct_ptr) {
+    /* Current angles */
+    static float current_pitch = ANGLE_INIT_PITCH;
 
+    /* Last calc tick */
+    static uint32_t last_tick = 0;
+
+    /* Initial run */
+    if (last_tick == 0) {
+        last_tick = HAL_GetTick();
+        return;
+    }
+
+    /* Get gyro rates */
+    float yaw_rate, roll_rate, pitch_rate;
+    if (get_gyro(&yaw_rate, &roll_rate, &pitch_rate) != true) {
+        return;
+    }
+
+    /* Get accel angles */
+    float accel_pitch, accel_yaw;
+    if (imu_get_pitch_yaw(&accel_pitch, &accel_yaw) != true) {
+        return;
+    }
+
+    /* Get integral of rates and combine with accel */
+    uint32_t current_tick = HAL_GetTick();
+    float dt = (float)(current_tick - last_tick)/1000.0;
+    float accel_k = 0.02;
+    current_pitch = (current_pitch + (pitch_rate/1000.0) * dt) * (1 - accel_k) + accel_pitch*accel_k;
+
+    last_tick = current_tick;
+
+    printf("%.2f, %.2f\n", accel_pitch, current_pitch);
+
+//    set_roll_pitch(current_yaw, ch_struct_ptr->ch2);
 }
 
 void handle_super_ohuet_vip_3d_mode(struct IbusCannels* ch_struct_ptr) {
@@ -107,7 +181,8 @@ void ch_data_callback(struct IbusCannels* ch_struct_ptr) {
     if (ch_struct_ptr->ch5 == 1000) {
         handle_verticle_mode(ch_struct_ptr);
     } else {
-        handle_super_ohuet_vip_3d_mode(ch_struct_ptr);
+        handle_horizontal_mode(ch_struct_ptr);
+//        handle_super_ohuet_vip_3d_mode(ch_struct_ptr);
     }
     __enable_irq();
 }
@@ -120,7 +195,7 @@ float get_bat_voltage() {
     uint32_t raw_val = HAL_ADC_GetValue(&hadc1);
     float val_volt = filter_process(((float)raw_val*3300.0)/4095.0);
     float val_bat = val_volt*5.44;
-    printf("Voltage -> ADC: %.3f mV, battery: %.3f mV\n", val_volt, val_bat);
+//    printf("Voltage -> ADC: %.3f mV, battery: %.3f mV\n", val_volt, val_bat);
     return val_bat;
 }
 
