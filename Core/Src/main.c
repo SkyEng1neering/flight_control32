@@ -30,6 +30,7 @@
 #include "ibus.h"
 #include "imu.h"
 #include "stdbool.h"
+#include "PID/c/PID.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -49,6 +50,26 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+
+/* PID section */
+
+float pid_source_roll_angle()
+{
+    return 0.f; //todo
+}
+
+void pid_output_roll_angle(float output)
+{
+    // set elevons
+}
+
+// P, I, and D represent constants in the user's program.
+double P = 1.0, I = 0.0, D = 0.0;
+PIDController<float> pid_controller_roll_angle(P, I, D, pid_source_roll_angle, pid_output_roll_angle);
+pid_controller_roll_angle.registerTimeFunction(HAL_GetTick);
+
+/* end PID section */
+
 void usart_rx_byte(uint8_t byte) {
 //	printf("%d\n", byte);
 	ibus_data_process(byte);
