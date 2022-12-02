@@ -68,13 +68,19 @@ uint32_t band2band(uint32_t b1_min, uint32_t b1_max, uint32_t b2_min, uint32_t b
 }
 
 void handle_verticle_mode(struct IbusCannels* ch_struct_ptr) {
-	float pitch = 0.0;
-	float yaw = 0.0;
-	if (imu_get_pitch_yaw(&pitch, &yaw) != true) {
+	float pitch_rate, roll_rate, yaw_rate;  // нос вверх, правое крыло вниз,нос влево
+	if (get_gyro(&pitch_rate, &roll_rate, &yaw_rate) != true) {
 		return;
 	}
 
-	printf("pitch: %.2f, yaw: %.2f\n", pitch, yaw);
+    //yaw_rate should be proportional to stick (left, horizontal)
+
+    //pitch_rate should be zero. and propotional to derivative of stick(right, vertical)
+    //OR pitch should be propotional to stick(right, vertical)
+
+    //Roll should be proportional to stick(right, horizontal)
+
+	//printf("pitch: %.2f, yaw: %.2f\n", pitch, yaw);
 }
 
 void handle_horizontal_mode(struct IbusCannels* ch_struct_ptr) {
