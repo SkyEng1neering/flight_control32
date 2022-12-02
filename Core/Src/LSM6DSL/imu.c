@@ -65,7 +65,7 @@ bool imu_init() {
 	lsm6dsl_gy_data_rate_set(&dev_ctx, LSM6DSL_GY_ODR_416Hz);
 	/* Set full scale */
 	lsm6dsl_xl_full_scale_set(&dev_ctx, LSM6DSL_2g);
-	lsm6dsl_gy_full_scale_set(&dev_ctx, LSM6DSL_2000dps);
+	lsm6dsl_gy_full_scale_set(&dev_ctx, LSM6DSL_125dps);
 	/* Configure filtering chain(No aux interface) */
 	/* Accelerometer - analog filter */
 	lsm6dsl_xl_filter_analog_set(&dev_ctx, LSM6DSL_XL_ANA_BW_400Hz);
@@ -105,6 +105,30 @@ bool imu_get_acc_mg(float* x, float* y, float* z) {
 	return false;
 }
 
+bool get_gyro(float* wx, float* wy, float* wz) {
+	lsm6dsl_reg_t reg;
+	int16_t data_raw_gyro[3];
+	lsm6dsl_status_reg_get(&dev_ctx, &reg.status_reg);
+
+	if (reg.status_reg.xlda) {
+		//memset(data_raw_acceleration, 0x00, 3 * sizeof(int16_t));
+        lsm6dsl_angular_rate_raw_get(&dev_ctx, data_raw_gyro);
+//		printf("%d, %d, %d\n", data_r2aw_acceleration[0], data_raw_acceleration[1], data_raw_acceleration[2]);
+		if (wx != NULL) {
+			*wx = lsm6dsl_from_fs125dps_to_mdps(data_raw_gyro[0]);
+		}
+		if (wy != NULL) {
+			*wy = lsm6dsl_from_fs125dps_to_mdps(data_raw_gyro[1]);
+		}
+		if (wz != NULL) {
+			*wz = lsm6dsl_from_fs125dps_to_mdps(data_raw_gyro[2]);
+		}
+		return true;
+	}
+	return false;
+}
+
+/*
 bool imu_get_pitch_yaw(float* pitch, float* yaw) {
 	float x = 0.0;
 	float y = 0.0;
@@ -116,10 +140,12 @@ bool imu_get_pitch_yaw(float* pitch, float* yaw) {
 	float g_module = sqrtf(x*x + y*y + z*z);
 	*pitch = rad2grad(acosf(x/g_module));
 	*yaw = rad2grad(acosf(z/g_module));
+
 	return true;
 }
 
-
+}
+*/
 
 
 static int16_t data_raw_acceleration[3];

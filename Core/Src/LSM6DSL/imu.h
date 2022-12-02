@@ -9,4 +9,6 @@ bool imu_get_pitch_yaw(float* pitch, float* yaw);
 bool imu_init();
 bool imu_get_acc_mg(float* x, float* y, float* z);
 
+/* gyro in mdps (milli? degree per second)*/
+bool get_gyro(float* wx, float* wy, float* wz);
 #endif /* SRC_LSM6DSL_IMU_H_ */
