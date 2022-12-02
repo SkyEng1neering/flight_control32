@@ -30,11 +30,15 @@
 #include "ibus.h"
 #include "imu.h"
 #include "stdbool.h"
+#include "low_pass_simple.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+#define BATT_VOLTAGE_DISARM_THRESHOLD_MV         6000
+#define BATT_VOLTAGE_TURTLE_THRESHOLD_MV         6700
+static bool disarm_flag = false;
+static bool turtle_mode_flag = false;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -95,9 +99,9 @@ void handle_super_ohuet_vip_3d_mode(struct IbusCannels* ch_struct_ptr) {
 	}
 
 //	printf("ch1: %d, ch2: %d, ch3: %d, ch4: %d, elevon_diff: %d, r_val: %lu, l_val: %lu\n", ch_struct_ptr->ch1, ch_struct_ptr->ch2, ch_struct_ptr->ch3, ch_struct_ptr->ch4, propeller_diff, propeller_right_val, propeller_left_val);
-	printf("ch1: %d, ch2: %d, ch3: %d, ch4: %d, ch5: %d, ch6: %d, ch7: %d, ch8: %d, ch9: %d, ch10: %d, ch11: %d, ch12: %d, ch13: %d, ch14: %d\n",
-			ch_struct_ptr->ch1, ch_struct_ptr->ch2, ch_struct_ptr->ch3, ch_struct_ptr->ch4, ch_struct_ptr->ch5, ch_struct_ptr->ch6, ch_struct_ptr->ch7,
-			ch_struct_ptr->ch8, ch_struct_ptr->ch9, ch_struct_ptr->ch10, ch_struct_ptr->ch11, ch_struct_ptr->ch12, ch_struct_ptr->ch13, ch_struct_ptr->ch14);
+//	printf("ch1: %d, ch2: %d, ch3: %d, ch4: %d, ch5: %d, ch6: %d, ch7: %d, ch8: %d, ch9: %d, ch10: %d, ch11: %d, ch12: %d, ch13: %d, ch14: %d\n",
+//			ch_struct_ptr->ch1, ch_struct_ptr->ch2, ch_struct_ptr->ch3, ch_struct_ptr->ch4, ch_struct_ptr->ch5, ch_struct_ptr->ch6, ch_struct_ptr->ch7,
+//			ch_struct_ptr->ch8, ch_struct_ptr->ch9, ch_struct_ptr->ch10, ch_struct_ptr->ch11, ch_struct_ptr->ch12, ch_struct_ptr->ch13, ch_struct_ptr->ch14);
 
 
 
@@ -109,11 +113,25 @@ void handle_super_ohuet_vip_3d_mode(struct IbusCannels* ch_struct_ptr) {
 	/* Left elevon */
 	TIM2->CCR1 = elevon_left_val;
 
+    /* Check disarm flag */
+    if (disarm_flag == true) {
+        TIM4->CCR1 = 0;
+        TIM4->CCR2 = 0;
+        return;
+    }
+
+    uint32_t prop_max_val = 1980;
+
+    /* Check turtle mode flag */
+    if (turtle_mode_flag == true) {
+        prop_max_val = 1350;
+    }
+
 	/* Right propeller */
-	TIM4->CCR1 = band2band(1000, 2000, 20, 100, crop_data(1010, 1950, propeller_right_val));
+	TIM4->CCR1 = band2band(1000, 2000, 20, 100, crop_data(1010, prop_max_val, propeller_right_val));
 
 	/* Left propeller */
-	TIM4->CCR2 = band2band(1000, 2000, 20, 100, crop_data(1010, 1950, propeller_left_val));
+	TIM4->CCR2 = band2band(1000, 2000, 20, 100, crop_data(1010, prop_max_val, propeller_left_val));
 }
 
 void ch_data_callback(struct IbusCannels* ch_struct_ptr) {
@@ -121,7 +139,7 @@ void ch_data_callback(struct IbusCannels* ch_struct_ptr) {
 	if (ch_struct_ptr->ch5 == 1000) {
 		handle_verticle_mode(ch_struct_ptr);
 	} else {
-		handle_horizontal_mode(ch_struct_ptr);
+	    handle_super_ohuet_vip_3d_mode(ch_struct_ptr);
 	}
 	__enable_irq();
 }
@@ -135,7 +153,30 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+float get_bat_voltage() {
+    HAL_ADC_Start(&hadc1);
+    HAL_ADC_PollForConversion(&hadc1, 1000);
+    uint32_t raw_val = HAL_ADC_GetValue(&hadc1);
+    float val_volt = filter_process(((float)raw_val*3300.0)/4095.0);
+    float val_bat = val_volt*5.44;
+    printf("Voltage -> ADC: %.3f mV, battery: %.3f mV\n", val_volt, val_bat);
+    return val_bat;
+}
 
+void check_bat_voltage() {
+    float bat_voltage = get_bat_voltage();
+    if (bat_voltage < BATT_VOLTAGE_DISARM_THRESHOLD_MV) {
+        disarm_flag = true;
+    } else {
+        disarm_flag = false;
+    }
+
+    if (bat_voltage < BATT_VOLTAGE_TURTLE_THRESHOLD_MV) {
+        turtle_mode_flag = true;
+    } else {
+        turtle_mode_flag = false;
+    }
+}
 /* USER CODE END 0 */
 
 /**
@@ -174,6 +215,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   ibus_init(ch_data_callback);
   imu_init();
+  filter_init(10.0, 1500.0);
 
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
   HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
@@ -193,9 +235,12 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+      check_bat_voltage();
+      HAL_Delay(100);
   }
   /* USER CODE END 3 */
 }
