@@ -1,6 +1,10 @@
 #ifndef IBUS_H
 #define IBUS_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "stm32f1xx.h"
 
 #define IBUS_PACKET_LEN         32
@@ -50,5 +54,9 @@ union IbusPacket {
 
 void ibus_data_process(uint8_t byte);
 void ibus_init(void (*ch_data_handler_ptr)(struct IbusCannels*));
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* IBUS_H */

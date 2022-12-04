@@ -128,7 +128,7 @@ bool get_gyro(float* wx, float* wy, float* wz) {
 }
 
 
-bool imu_get_pitch_yaw(float* pitch, float* yaw) {
+bool imu_get_pitch_roll(float* pitch, float* roll) {
     float x = 0.0;
     float y = 0.0;
     float z = 0.0;
@@ -138,7 +138,7 @@ bool imu_get_pitch_yaw(float* pitch, float* yaw) {
 //	printf("%.2f, %.2f, %.2f\n", x, y, z);
     float g_module = sqrtf(x*x + y*y + z*z);
     *pitch = rad2grad(acosf(-y/g_module)) - 90.0 + 6.7;
-    *yaw = rad2grad(acosf(z/g_module));
+    *roll = rad2grad(acosf(z/g_module)) - 90.0;
 
     return true;
 }
