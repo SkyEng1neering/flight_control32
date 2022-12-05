@@ -4,6 +4,7 @@
 #include "controls.h"
 #include "pidlib.h"
 #include "utils.h"
+#include "config.h"
 
 #define VERTICLE_PITCH_FULL_BAND            60.0 /* Grads */
 #define VERTICLE_PITCH_BAND_PT              25.0 /* Percents */
@@ -13,8 +14,10 @@
 
 #define VERTICLE_ROLL_BAND_PT               25.0 /* Percents */
 
-PID<float> verticle_pid_pitch(5.0, 0.0, 50.0, CONTROLS_BAND_MIN, CONTROLS_BAND_MAX, 6.0);
-PID<float> verticle_pid_yaw(5.0, 0.0, 0.0, CONTROLS_BAND_MIN, CONTROLS_BAND_MAX, 6.0);
+extern struct FlightConfig global_config;
+
+PID<float> verticle_pid_pitch(20.0, 0.0, 40.0, CONTROLS_BAND_MIN, CONTROLS_BAND_MAX, 6.0);
+PID<float> verticle_pid_yaw(8.0, 0.0, 2000.0, CONTROLS_BAND_MIN, CONTROLS_BAND_MAX, 6.0);
 
 void vertical_mode(struct IbusCannels* ch_struct_ptr) {
     float target_pitch = fband2band(RC_BAND_MIN, RC_BAND_MAX,
@@ -36,6 +39,11 @@ void vertical_mode(struct IbusCannels* ch_struct_ptr) {
         return;
     }
 
+    /* Compensate biases */
+    yaw_rate -= global_config.gyro_yaw_rate_bias;
+    roll_rate -= global_config.gyro_roll_rate_bias;
+    pitch_rate -= global_config.gyro_pitch_rate_bias;
+
     /* Get accel angles */
     float x = 0.0;
     float y = 0.0;
@@ -45,8 +53,8 @@ void vertical_mode(struct IbusCannels* ch_struct_ptr) {
     }
 
     float g_module = sqrtf(x*x + y*y + z*z);
-    float accel_yaw = rad2grad(acosf(z/g_module)) - 90.0;
-    float accel_pitch = rad2grad(acosf(-x/g_module)) + 6.7;
+    float accel_yaw = rad2grad(acosf(z/g_module)) - 90.0 + global_config.accel_yaw_offset;
+    float accel_pitch = rad2grad(acosf(-x/g_module)) + global_config.accel_pitch_offset;
 
     float pitch = get_fused_pitch(pitch_rate, accel_pitch);
     float yaw = get_fused_roll(roll_rate, accel_yaw);
@@ -64,9 +72,10 @@ void vertical_mode(struct IbusCannels* ch_struct_ptr) {
     static uint32_t last_tick = HAL_GetTick();
 
     uint32_t current_tick = HAL_GetTick();
+//    printf("pitch: %.2f, new_pitch: %.2f, yaw: %.2f, new_yaw: %.2f, period %.2f\n",
+//            pitch, new_pitch, yaw, new_yaw, (float)(current_tick - last_tick));
+    printf("%.2f, %.2f\n", yaw, new_yaw);
     last_tick = current_tick;
-
-    printf("accel_pitch: %.2f, pitch: %.2f, new_pitch: %.2f, period %.2f\n", accel_pitch, pitch, new_pitch, (float)(current_tick - last_tick));
 }
 
 void horizontal_mode(struct IbusCannels* ch_struct_ptr) {

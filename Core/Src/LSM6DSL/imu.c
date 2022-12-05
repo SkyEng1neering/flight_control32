@@ -6,6 +6,7 @@
 #include "gpio.h"
 #include "math.h"
 #include "stdbool.h"
+#include "timebase_us.h"
 
 
 #define SENSOR_BUS hspi1
@@ -26,6 +27,8 @@
 /* Self test results. */
 #define    ST_PASS     1U
 #define    ST_FAIL     0U
+
+#define    DATA_GET_TIMEOUT_MS         1000
 
 stmdev_ctx_t dev_ctx;
 
@@ -72,8 +75,7 @@ bool imu_init() {
     /* Accelerometer - LPF1 path ( LPF2 not used )*/
     //lsm6dsl_xl_lp1_bandwidth_set(&dev_ctx, LSM6DSL_XL_LP1_ODR_DIV_4);
     /* Accelerometer - LPF1 + LPF2 path */
-    lsm6dsl_xl_lp2_bandwidth_set(&dev_ctx,
-                           LSM6DSL_XL_LOW_NOISE_LP_ODR_DIV_100);
+    lsm6dsl_xl_lp2_bandwidth_set(&dev_ctx, LSM6DSL_XL_LOW_LAT_LP_ODR_DIV_50);
     /* Accelerometer - High Pass / Slope path */
     //lsm6dsl_xl_reference_mode_set(&dev_ctx, PROPERTY_DISABLE);
     //lsm6dsl_xl_hp_bandwidth_set(&dev_ctx, LSM6DSL_XL_HP_ODR_DIV_100);
@@ -85,22 +87,27 @@ bool imu_init() {
 bool imu_get_acc_mg(float* x, float* y, float* z) {
     lsm6dsl_reg_t reg;
     int16_t data_raw_acceleration[3];
-    lsm6dsl_status_reg_get(&dev_ctx, &reg.status_reg);
 
-    if (reg.status_reg.xlda) {
-        memset(data_raw_acceleration, 0x00, 3 * sizeof(int16_t));
-        lsm6dsl_acceleration_raw_get(&dev_ctx, data_raw_acceleration);
-//		printf("%d, %d, %d\n", data_raw_acceleration[0], data_raw_acceleration[1], data_raw_acceleration[2]);
-        if (x != NULL) {
-            *x = lsm6dsl_from_fs2g_to_mg(data_raw_acceleration[0]);
+    uint32_t start_tick = HAL_GetTick();
+    while (HAL_GetTick() - start_tick <= DATA_GET_TIMEOUT_MS) {
+        lsm6dsl_status_reg_get(&dev_ctx, &reg.status_reg);
+        if (reg.status_reg.xlda) {
+            memset(data_raw_acceleration, 0x00, 3 * sizeof(int16_t));
+            lsm6dsl_acceleration_raw_get(&dev_ctx, data_raw_acceleration);
+    //      printf("%d, %d, %d\n", data_raw_acceleration[0], data_raw_acceleration[1], data_raw_acceleration[2]);
+            if (x != NULL) {
+                *x = lsm6dsl_from_fs2g_to_mg(data_raw_acceleration[0]);
+            }
+            if (y != NULL) {
+                *y = lsm6dsl_from_fs2g_to_mg(data_raw_acceleration[1]);
+            }
+            if (z != NULL) {
+                *z = lsm6dsl_from_fs2g_to_mg(data_raw_acceleration[2]);
+            }
+            return true;
+        } else {
+            continue;
         }
-        if (y != NULL) {
-            *y = lsm6dsl_from_fs2g_to_mg(data_raw_acceleration[1]);
-        }
-        if (z != NULL) {
-            *z = lsm6dsl_from_fs2g_to_mg(data_raw_acceleration[2]);
-        }
-        return true;
     }
     return false;
 }
@@ -108,21 +115,25 @@ bool imu_get_acc_mg(float* x, float* y, float* z) {
 bool get_gyro(float* wx, float* wy, float* wz) {
     lsm6dsl_reg_t reg;
     int16_t data_raw_gyro[3];
-    lsm6dsl_status_reg_get(&dev_ctx, &reg.status_reg);
-
-    if (reg.status_reg.xlda) {
-        lsm6dsl_angular_rate_raw_get(&dev_ctx, data_raw_gyro);
-//		printf("%d, %d, %d\n", data_r2aw_acceleration[0], data_raw_acceleration[1], data_raw_acceleration[2]);
-        if (wx != NULL) {
-            *wx = lsm6dsl_from_fs125dps_to_mdps(data_raw_gyro[0]);
+    uint32_t start_tick = HAL_GetTick();
+    while (HAL_GetTick() - start_tick <= DATA_GET_TIMEOUT_MS) {
+        lsm6dsl_status_reg_get(&dev_ctx, &reg.status_reg);
+        if (reg.status_reg.xlda) {
+            lsm6dsl_angular_rate_raw_get(&dev_ctx, data_raw_gyro);
+    //		printf("%d, %d, %d\n", data_r2aw_acceleration[0], data_raw_acceleration[1], data_raw_acceleration[2]);
+            if (wx != NULL) {
+                *wx = lsm6dsl_from_fs125dps_to_mdps(data_raw_gyro[0]);
+            }
+            if (wy != NULL) {
+                *wy = lsm6dsl_from_fs125dps_to_mdps(data_raw_gyro[1]);
+            }
+            if (wz != NULL) {
+                *wz = lsm6dsl_from_fs125dps_to_mdps(data_raw_gyro[2]);
+            }
+            return true;
+        } else {
+            continue;
         }
-        if (wy != NULL) {
-            *wy = lsm6dsl_from_fs125dps_to_mdps(data_raw_gyro[1]);
-        }
-        if (wz != NULL) {
-            *wz = lsm6dsl_from_fs125dps_to_mdps(data_raw_gyro[2]);
-        }
-        return true;
     }
     return false;
 }
