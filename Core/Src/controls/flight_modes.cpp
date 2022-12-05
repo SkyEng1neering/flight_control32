@@ -64,8 +64,9 @@ void vertical_mode(struct IbusCannels* ch_struct_ptr) {
     static uint32_t last_tick = HAL_GetTick();
 
     uint32_t current_tick = HAL_GetTick();
-    printf("accel_pitch: %.2f, pitch: %.2f, new_pitch: %.2f, period %.2f\n", accel_pitch, pitch, new_pitch, (float)(current_tick - last_tick));
     last_tick = current_tick;
+
+    printf("accel_pitch: %.2f, pitch: %.2f, new_pitch: %.2f, period %.2f\n", accel_pitch, pitch, new_pitch, (float)(current_tick - last_tick));
 }
 
 void horizontal_mode(struct IbusCannels* ch_struct_ptr) {
