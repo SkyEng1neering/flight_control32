@@ -39,7 +39,9 @@ extern "C" {
 void MX_GPIO_Init(void);
 
 /* USER CODE BEGIN Prototypes */
-
+void led_on();
+void led_off();
+void led_toggle();
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus

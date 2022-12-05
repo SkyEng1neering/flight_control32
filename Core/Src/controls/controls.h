@@ -1,6 +1,10 @@
 #ifndef SRC_CONTROLS_CONTROLS_H_
 #define SRC_CONTROLS_CONTROLS_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define CONTROLS_BAND_MIN                 -100.0
 #define CONTROLS_BAND_MAX                 100.0
 
@@ -12,5 +16,10 @@ void set_roll_pitch(float roll, float pitch);
 void set_yaw_throttle(float yaw, float throttle);
 float get_fused_pitch(float pitch_rate, float accel_pitch);
 float get_fused_roll(float roll_rate, float accel_roll);
+void calibration();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* SRC_CONTROLS_CONTROLS_H_ */

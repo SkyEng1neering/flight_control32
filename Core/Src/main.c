@@ -12,10 +12,14 @@
 #include "math.h"
 #include "controls.h"
 #include "flight_modes.h"
+#include "config.h"
+#include "controls.h"
+#include "timebase_us.h"
 
 #define BATT_VOLTAGE_DISARM_THRESHOLD_MV         6000
 #define BATT_VOLTAGE_TURTLE_THRESHOLD_MV         6700
 
+struct FlightConfig global_config;
 bool disarm_flag = false;
 bool turtle_mode_flag = false;
 
@@ -37,14 +41,23 @@ void handle_super_ohuet_vip_3d_mode(struct IbusCannels* ch_struct_ptr) {
 }
 
 void ch_data_callback(struct IbusCannels* ch_struct_ptr) {
-    __disable_irq();
+//    __disable_irq();
+//    printf("%u %u %u %u\n", ch_struct_ptr->ch1, ch_struct_ptr->ch2, ch_struct_ptr->ch3, ch_struct_ptr->ch4);
+
+    /* Check stick patterns */
+    if ((ch_struct_ptr->ch1 < 1100) && (ch_struct_ptr->ch2 < 1100) &&
+            (ch_struct_ptr->ch3 < 1100) && (ch_struct_ptr->ch4 < 1100)) {
+        /* Calibration pattern */
+        calibration();
+    }
+
     if (ch_struct_ptr->ch5 == 1000) {
         handle_verticle_mode(ch_struct_ptr);
     } else {
 //        handle_horizontal_mode(ch_struct_ptr);
 //        handle_super_ohuet_vip_3d_mode(ch_struct_ptr);
     }
-    __enable_irq();
+//    __enable_irq();
 }
 
 void SystemClock_Config();
@@ -54,21 +67,25 @@ int main(void) {
     HAL_Init();
     SystemClock_Config();
 
+    get_config(&global_config);
+
     MX_GPIO_Init();
-    MX_USART1_UART_Init();
     MX_SPI1_Init();
-    MX_TIM2_Init();
     MX_ADC1_Init();
-    MX_TIM4_Init();
 
     ibus_init(ch_data_callback);
     imu_init();
     filter_init(10.0, 1500.0);
+    timebase_us_init();
 
+    MX_TIM2_Init();
+    MX_TIM4_Init();
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
     HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_2);
     HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
     HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_2);
+
+    MX_USART1_UART_Init();
 
     printf("Flight control started\n");
     //  lsm6dsl_self_test();
@@ -144,6 +161,9 @@ void check_bat_voltage() {
     float bat_voltage = get_bat_voltage();
     if (bat_voltage < BATT_VOLTAGE_DISARM_THRESHOLD_MV) {
         disarm_flag = true;
+    } else {
+        disarm_flag = false;
+        turtle_mode_flag = false;
     }
 
     if (bat_voltage < BATT_VOLTAGE_TURTLE_THRESHOLD_MV) {

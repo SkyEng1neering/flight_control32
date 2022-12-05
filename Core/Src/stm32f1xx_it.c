@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "usart.h"
+#include "timebase_us.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -214,6 +215,9 @@ void USART1_IRQHandler(void)
 }
 
 /* USER CODE BEGIN 1 */
-
+void TIM3_IRQHandler(void){
+    TIM3->SR &=~ TIM_SR_UIF;
+    timebase_us_callback();
+}
 /* USER CODE END 1 */
 
