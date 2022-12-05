@@ -11,7 +11,7 @@
 
 /* Start angles */
 #define ANGLE_INIT_PITCH                  90.0
-#define ANGLE_INIT_YAW                    0.0
+//#define ANGLE_INIT_YAW                    0.0 not used todo delete
 #define ANGLE_INIT_ROLL                   0.0
 
 #define ELEVON_OFFSET_MIN                 10
@@ -24,7 +24,7 @@
 #define PROPELLER_TIM_VAL_MIN             20
 #define PROPELLER_TIM_VAL_MAX             100
 
-#define CALIB_MEAS_NUM                    10000
+#define CALIB_MEAS_NUM                    35000 // will take around 3 seconds
 
 extern struct FlightConfig global_config;
 extern bool disarm_flag;
@@ -136,11 +136,11 @@ float get_fused_roll(float roll_rate, float accel_roll) {
 void calibration() {
     printf("Calibration started\n");
     led_on();
-    FilterLowPass acc_pitch_offset_filt(100.0, 4000.0);
-    FilterLowPass acc_yaw_offset_filt(100.0, 4000.0);
-    FilterLowPass gyr_yaw_bias_filt(100.0, 4000.0);
-    FilterLowPass gyr_roll_bias_filt(100.0, 4000.0);
-    FilterLowPass gyr_pitch_bias_filt(100.0, 4000.0);
+    double acc_pitch_offset = 0.0;
+    double acc_yaw_offset = 0.0;
+    double gyr_yaw_bias = 0.0;
+    double gyr_roll_bias = 0.0;
+    double gyr_pitch_bias = 0.0;
 
     for (uint32_t i = 0; i < CALIB_MEAS_NUM; i++) {
         /* Get gyro rates */
@@ -161,14 +161,19 @@ void calibration() {
         float accel_yaw = rad2grad(acosf(z/g_module)) - 90.0;
         float accel_pitch = rad2grad(acosf(-x/g_module));
 
-        global_config.accel_pitch_offset = acc_pitch_offset_filt.process(90.0 - accel_pitch);
-        global_config.accel_yaw_offset = acc_yaw_offset_filt.process(0.0 - accel_yaw);
-        global_config.gyro_yaw_rate_bias = gyr_yaw_bias_filt.process(yaw_rate);
-        global_config.gyro_roll_rate_bias = gyr_roll_bias_filt.process(roll_rate);
-        global_config.gyro_pitch_rate_bias = gyr_pitch_bias_filt.process(pitch_rate);
+        acc_pitch_offset += (90.0 - accel_pitch);
+        acc_yaw_offset += (0.0 - accel_yaw);
+        gyr_yaw_bias += (yaw_rate);
+        gyr_roll_bias += (roll_rate);
+        gyr_pitch_bias += (pitch_rate);
         led_toggle();
     }
 
+    global_config.accel_pitch_offset = (float)(acc_pitch_offset/CALIB_MEAS_NUM);
+    global_config.accel_yaw_offset = (float)(acc_yaw_offset/CALIB_MEAS_NUM);
+    global_config.gyro_pitch_rate_bias = (float)(gyr_yaw_bias/CALIB_MEAS_NUM);
+    global_config.gyro_yaw_rate_bias = (float)(gyr_roll_bias/CALIB_MEAS_NUM);
+    global_config.gyro_roll_rate_bias = (float)(gyr_pitch_bias/CALIB_MEAS_NUM);
     save_config(&global_config);
 
     led_off();
